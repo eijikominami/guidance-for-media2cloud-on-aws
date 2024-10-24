@@ -23,9 +23,9 @@ const BaseModel = require('./baseModel');
 
 const MODEL_ID = process.env.ENV_BEDROCK_MODEL_ID;
 const MODEL_VERSION = process.env.ENV_BEDROCK_MODEL_VER;
-const SYSTEM = 'You are a media operation engineer responsible for reviewing transcripts and assigning appropriate {{TASK}} to dialogues. Your task is to identify the top 3 relevant {{TASK}} for a given dialogue and provide a confidence score from 0 to 100. The output should be in JSON format. Skip any explanation in the output.';
-const SYSTEM_SUMMARY = 'You are a media operation engineer responsible for reviewing transcripts and summarize the dialogues into one or two paragraphs and provide a confidence score from 0 to 100. The output should be in JSON format. Skip any explanation in the output.';
-const SYSTEM_CUSTOM = 'You are a media operation engineer responsible for reviewing transcripts and answer the following question and provide a confidence score from 0 to 100. The output should be in JSON format. Skip any explanation in the output.';
+const SYSTEM = '<<Japanese>>\n You are a media operation engineer responsible for reviewing transcripts and assigning appropriate {{TASK}} to dialogues. Your task is to identify the top 3 relevant {{TASK}} for a given dialogue and provide a confidence score from 0 to 100. The output should be in JSON format. Skip any explanation in the output.';
+const SYSTEM_SUMMARY = '<<Japanese>>\n You are a media operation engineer responsible for reviewing transcripts and summarize the dialogues into one or two paragraphs and provide a confidence score from 0 to 100. The output should be in JSON format. Skip any explanation in the output.';
+const SYSTEM_CUSTOM = '<<Japanese>>\n You are a media operation engineer responsible for reviewing transcripts and answer the following question and provide a confidence score from 0 to 100. The output should be in JSON format. Skip any explanation in the output.';
 
 const DEFAULT_PARAMS = {
   anthropic_version: MODEL_VERSION,
