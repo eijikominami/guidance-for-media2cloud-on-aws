@@ -44,6 +44,8 @@ Mappings:
             Name: videobased-detection
         DynamicFrameSegmentation:
             Name: dynamic-frame-segmentation
+        FaceApiModel:
+            Name: faceapi-model
         FrameBasedDetection:
             Name: framebased-detection
         CustomModelDetection:
@@ -79,6 +81,9 @@ Mappings:
         # Docker image containerized lambda
         SearchFrameSimilarity:
             Name: search-frame-similarity
+        # Docker image containerized lambda
+        RunFaceApi:
+            Name: run-faceapi
         # Main Workflow
         Main:
             Name: main
@@ -281,6 +286,9 @@ Parameters:
     BedrockModelVersion:
         Type: String
         Description: BedrockModelVersion
+    FaceApiImageUri:
+        Type: String
+        Description: FaceApiImageUri
 
 Conditions:
     bStartOnObjectCreation: !Equals
@@ -1335,6 +1343,12 @@ Resources:
 
     BacklogCustomLabelsStateMachineServiceRole:
         Type: AWS::IAM::Role
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W11
+                        reason: CloudWatch API actions, such as CreateLogDelivery and DescribeLogGroups, do not support Resource types defined by Amazon CloudWatch Logs. Refer to https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html
         Properties:
             AssumeRolePolicyDocument:
                 Version: "2012-10-17"
@@ -1355,6 +1369,37 @@ Resources:
                                 Effect: Allow
                                 Action: lambda:InvokeFunction
                                 Resource: !GetAtt BacklogCustomLabelsLambda.Arn
+                            -
+                                Effect: Allow
+                                Action:
+                                    - logs:CreateLogDelivery
+                                    - logs:GetLogDelivery
+                                    - logs:UpdateLogDelivery
+                                    - logs:DeleteLogDelivery
+                                    - logs:ListLogDeliveries
+                                    - logs:PutResourcePolicy
+                                    - logs:DescribeResourcePolicies
+                                    - logs:DescribeLogGroups
+                                    - logs:CreateLogStream
+                                    - logs:PutLogEvents
+                                Resource: "*"
+
+    BacklogCustomLabelsStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - BacklogCustomLabels
+                    - Name
+            RetentionInDays: 7
 
     BacklogCustomLabelsStateMachine:
         Type: AWS::StepFunctions::StateMachine
@@ -1366,6 +1411,12 @@ Resources:
                     - BacklogCustomLabels
                     - Name
             RoleArn: !GetAtt BacklogCustomLabelsStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt BacklogCustomLabelsStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
@@ -2033,6 +2084,9 @@ Resources:
                     -
                         id: W76
                         reason: Suppress SPCM warning to have fine grained permission
+                    -
+                        id: W11
+                        reason: CloudWatch API actions, such as CreateLogDelivery and DescribeLogGroups, do not support Resource types defined by Amazon CloudWatch Logs. Refer to https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html
         Properties:
             AssumeRolePolicyDocument:
                 Version: "2012-10-17"
@@ -2139,6 +2193,20 @@ Resources:
                                     - events:PutRule
                                     - events:DescribeRule
                                 Resource: !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/StepFunctionsGetEventsForStepFunctionsExecutionRule
+                            -
+                                Effect: Allow
+                                Action:
+                                    - logs:CreateLogDelivery
+                                    - logs:GetLogDelivery
+                                    - logs:UpdateLogDelivery
+                                    - logs:DeleteLogDelivery
+                                    - logs:ListLogDeliveries
+                                    - logs:PutResourcePolicy
+                                    - logs:DescribeResourcePolicies
+                                    - logs:DescribeLogGroups
+                                    - logs:CreateLogStream
+                                    - logs:PutLogEvents
+                                Resource: "*"
 
     ################################################################################
     # Ingest Fixty State Machine resources
@@ -2253,6 +2321,23 @@ Resources:
                     ENV_IOT_TOPIC: !Ref IotTopic
                     ENV_INGEST_BUCKET: !Ref IngestBucket
 
+    IngestFixityStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - IngestFixity
+                    - Name
+            RetentionInDays: 7
+
     IngestFixityStateMachine:
         Type: AWS::StepFunctions::StateMachine
         Properties:
@@ -2263,6 +2348,12 @@ Resources:
                     - IngestFixity
                     - Name
             RoleArn: !GetAtt IngestStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt IngestFixityStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
@@ -2638,6 +2729,23 @@ Resources:
                     ENV_BACKLOG_TOPIC_ARN: !Ref BacklogTopic
                     ENV_BACKLOG_TOPIC_ROLE_ARN: !GetAtt BacklogTopicRole.Arn
 
+    IngestVideoStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - IngestVideo
+                    - Name
+            RetentionInDays: 7
+
     IngestVideoStateMachine:
         Type: AWS::StepFunctions::StateMachine
         Properties:
@@ -2648,6 +2756,12 @@ Resources:
                     - IngestVideo
                     - Name
             RoleArn: !GetAtt IngestStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt IngestVideoStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
@@ -2930,6 +3044,23 @@ Resources:
                     ENV_BACKLOG_TOPIC_ARN: !Ref BacklogTopic
                     ENV_BACKLOG_TOPIC_ROLE_ARN: !GetAtt BacklogTopicRole.Arn
 
+    IngestAudioStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - IngestAudio
+                    - Name
+            RetentionInDays: 7
+
     IngestAudioStateMachine:
         Type: AWS::StepFunctions::StateMachine
         Properties:
@@ -2940,6 +3071,12 @@ Resources:
                     - IngestAudio
                     - Name
             RoleArn: !GetAtt IngestStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt IngestAudioStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
@@ -3122,6 +3259,23 @@ Resources:
                     ENV_INGEST_BUCKET: !Ref IngestBucket
                     ENV_PROXY_BUCKET: !Ref ProxyBucket
 
+    IngestImageStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - IngestImage
+                    - Name
+            RetentionInDays: 7
+
     IngestImageStateMachine:
         Type: AWS::StepFunctions::StateMachine
         Properties:
@@ -3132,6 +3286,12 @@ Resources:
                     - IngestImage
                     - Name
             RoleArn: !GetAtt IngestStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt IngestImageStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
@@ -3295,6 +3455,23 @@ Resources:
                     ENV_INGEST_BUCKET: !Ref IngestBucket
                     ENV_PROXY_BUCKET: !Ref ProxyBucket
 
+    IngestDocumentStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - IngestDocument
+                    - Name
+            RetentionInDays: 7
+
     IngestDocumentStateMachine:
         Type: AWS::StepFunctions::StateMachine
         Properties:
@@ -3305,6 +3482,12 @@ Resources:
                     - IngestDocument
                     - Name
             RoleArn: !GetAtt IngestStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt IngestDocumentStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
@@ -3523,6 +3706,23 @@ Resources:
                     ENV_DEFAULT_MINCONFIDENCE: !Ref DefaultMinConfidence
                     ENV_AI_OPTIONS_S3KEY: !Ref AIOptionsS3Key
 
+    IngestMainStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - IngestMain
+                    - Name
+            RetentionInDays: 7
+
     IngestMainStateMachine:
         Type: AWS::StepFunctions::StateMachine
         Properties:
@@ -3533,6 +3733,12 @@ Resources:
                     - IngestMain
                     - Name
             RoleArn: !GetAtt IngestStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt IngestMainStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
@@ -4005,6 +4211,9 @@ Resources:
                     -
                         id: W76
                         reason: Suppress SPCM warning to have fine grained permission
+                    -
+                        id: W11
+                        reason: CloudWatch API actions, such as CreateLogDelivery and DescribeLogGroups, do not support Resource types defined by Amazon CloudWatch Logs. Refer to https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html
         Properties:
             AssumeRolePolicyDocument:
                 Version: "2012-10-17"
@@ -4035,6 +4244,7 @@ Resources:
                                     # containerised lambda functions (docker images)
                                     - !GetAtt RunImageEmbeddingsLambda.Arn
                                     - !GetAtt SearchFrameSimilarityLambda.Arn
+                                    - !GetAtt RunFaceApiLambda.Arn
                             # Below polices are needed for Service Integration of nested workflows
                             # https://docs.aws.amazon.com/step-functions/latest/dg/stepfunctions-iam.html
                             -
@@ -4076,6 +4286,12 @@ Resources:
                                         - name: !FindInMap
                                             - Workflow
                                             - DynamicFrameSegmentation
+                                            - Name
+                                    - !Sub
+                                        - arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ResourcePrefix}-${name}
+                                        - name: !FindInMap
+                                            - Workflow
+                                            - FaceApiModel
                                             - Name
                                     - !Sub
                                         - arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ResourcePrefix}-${name}
@@ -4141,6 +4357,12 @@ Resources:
                                         - arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:${ResourcePrefix}-${name}:*
                                         - name: !FindInMap
                                             - Workflow
+                                            - FaceApiModel
+                                            - Name
+                                    - !Sub
+                                        - arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:${ResourcePrefix}-${name}:*
+                                        - name: !FindInMap
+                                            - Workflow
                                             - FrameBasedDetection
                                             - Name
                                     - !Sub
@@ -4162,6 +4384,20 @@ Resources:
                                     - events:PutRule
                                     - events:DescribeRule
                                 Resource: !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/StepFunctionsGetEventsForStepFunctionsExecutionRule
+                            -
+                                Effect: Allow
+                                Action:
+                                    - logs:CreateLogDelivery
+                                    - logs:GetLogDelivery
+                                    - logs:UpdateLogDelivery
+                                    - logs:DeleteLogDelivery
+                                    - logs:ListLogDeliveries
+                                    - logs:PutResourcePolicy
+                                    - logs:DescribeResourcePolicies
+                                    - logs:DescribeLogGroups
+                                    - logs:CreateLogStream
+                                    - logs:PutLogEvents
+                                Resource: "*"
 
     ################################################################################
     # Analysis Video State Machine resources
@@ -4479,6 +4715,23 @@ Resources:
                     ENV_BACKLOG_TOPIC_ROLE_ARN: !GetAtt BacklogTopicRole.Arn
                     ENV_ATOMICLOCK_TABLE: !Ref AtomicLockTable
 
+    VideoBasedDetectionStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - VideoBasedDetection
+                    - Name
+            RetentionInDays: 7
+
     VideoBasedDetectionStateMachine:
         Type: AWS::StepFunctions::StateMachine
         Properties:
@@ -4489,6 +4742,12 @@ Resources:
                     - VideoBasedDetection
                     - Name
             RoleArn: !GetAtt AnalysisStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt VideoBasedDetectionStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
@@ -4603,6 +4862,23 @@ Resources:
                         }
                     }
 
+    DynamicFrameSegmentationStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - DynamicFrameSegmentation
+                    - Name
+            RetentionInDays: 7
+
     DynamicFrameSegmentationStateMachine:
         Type: AWS::StepFunctions::StateMachine
         Properties:
@@ -4613,10 +4889,16 @@ Resources:
                     -  DynamicFrameSegmentation
                     - Name
             RoleArn: !GetAtt AnalysisStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt DynamicFrameSegmentationStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
-                        "Comment": "frame segmentation using Amazon Rekognition Shot Segment, perceptual hash distance, image embedding, and similiarty search techniques",
+                        "Comment": "frame segmentation using Amazon Rekognition Shot Segment, perceptual hash distance",
                         "StartAt": "Use frame segmentation",
                         "States": {
                             "Use frame segmentation": {
@@ -4701,15 +4983,32 @@ Resources:
                             },
                             "Prepare segment detection": {
                                 "Type": "Task",
-                                "Resource": "${AnalysisVideoLambda.Arn}",
+                                "Resource": "arn:aws:states:::lambda:invoke",
+                                "OutputPath": "$.Payload",
                                 "Parameters": {
-                                    "operation": "prepare-segment-detection",
-                                    "uuid.$": "$.uuid",
-                                    "input.$": "$.input",
-                                    "data.$": "$.data",
-                                    "status": "NOT_STARTED",
-                                    "progress": 0
+                                    "FunctionName": "${AnalysisVideoLambda.Arn}",
+                                    "Payload": {
+                                        "operation": "prepare-segment-detection",
+                                        "uuid.$": "$.uuid",
+                                        "input.$": "$.input",
+                                        "data.$": "$.data",
+                                        "status": "NOT_STARTED",
+                                        "progress": 0
+                                    }
                                 },
+                                "Retry": [
+                                    {
+                                        "ErrorEquals": [
+                                            "Lambda.ServiceException",
+                                            "Lambda.AWSLambdaException",
+                                            "Lambda.SdkClientException",
+                                            "Lambda.TooManyRequestsException"
+                                        ],
+                                        "IntervalSeconds": 1,
+                                        "MaxAttempts": 2,
+                                        "BackoffRate": 1.2
+                                    }
+                                ],
                                 "Next": "Run segment detection and wait"
                             },
                             "Run segment detection and wait": {
@@ -4730,15 +5029,32 @@ Resources:
                             },
                             "Dynamically select frames": {
                                 "Type": "Task",
-                                "Resource": "${AnalysisVideoFrameSegmentationLambda.Arn}",
+                                "Resource": "arn:aws:states:::lambda:invoke",
+                                "OutputPath": "$.Payload",
                                 "Parameters": {
-                                    "operation": "select-segment-frames",
-                                    "uuid.$": "$.uuid",
-                                    "input.$": "$$.Execution.Input.input",
-                                    "data.$": "$.data",
-                                    "status": "NOT_STARTED",
-                                    "progress": 0
+                                    "FunctionName": "${AnalysisVideoFrameSegmentationLambda.Arn}",
+                                    "Payload": {
+                                        "operation": "select-segment-frames",
+                                        "uuid.$": "$.uuid",
+                                        "input.$": "$$.Execution.Input.input",
+                                        "data.$": "$.data",
+                                        "status": "NOT_STARTED",
+                                        "progress": 0
+                                    }
                                 },
+                                "Retry": [
+                                    {
+                                        "ErrorEquals": [
+                                            "Lambda.ServiceException",
+                                            "Lambda.AWSLambdaException",
+                                            "Lambda.SdkClientException",
+                                            "Lambda.TooManyRequestsException"
+                                        ],
+                                        "IntervalSeconds": 1,
+                                        "MaxAttempts": 2,
+                                        "BackoffRate": 1.2
+                                    }
+                                ],
                                 "Next": "More frames?"
                             },
                             "More frames?": {
@@ -4753,10 +5069,245 @@ Resources:
                                 "Default": "Dynamically select frames"
                             },
                             "Frame segmentation completed": {
-                                "Type": "Succeed"
+                                "Type": "Task",
+                                "Resource": "arn:aws:states:::lambda:invoke",
+                                "OutputPath": "$.Payload",
+                                "Parameters": {
+                                    "FunctionName": "${AnalysisVideoLambda.Arn}",
+                                    "Payload": {
+                                        "operation": "StateFrameSegmentationCompleted",
+                                        "uuid.$": "$.uuid",
+                                        "input.$": "$.input",
+                                        "data.$": "$.data",
+                                        "status": "NOT_STARTED",
+                                        "progress": 0
+                                    }
+                                },
+                                "Retry": [
+                                    {
+                                        "ErrorEquals": [
+                                            "CodeArtifactUserPendingException"
+                                        ],
+                                        "MaxAttempts": 4,
+                                        "IntervalSeconds": 10,
+                                        "BackoffRate": 1.2
+                                    },
+                                    {
+                                        "ErrorEquals": [
+                                            "AccessDeniedException",
+                                            "ResourceNotFoundException",
+                                            "ValidationException"
+                                        ],
+                                        "MaxAttempts": 0
+                                    },
+                                    {
+                                        "ErrorEquals": [
+                                            "InternalServerException",
+                                            "ModelErrorException",
+                                            "ModelNotReadyException",
+                                            "ModelTimeoutException",
+                                            "ServiceQuotaExceededException",
+                                            "ThrottlingException",
+                                            "ServiceUnavailableException"
+                                        ],
+                                        "IntervalSeconds": 60,
+                                        "MaxAttempts": 10,
+                                        "BackoffRate": 1.2
+                                    },
+                                    {
+                                        "ErrorEquals": [
+                                            "Lambda.ServiceException",
+                                            "Lambda.AWSLambdaException",
+                                            "Lambda.SdkClientException",
+                                            "Lambda.TooManyRequestsException"
+                                        ],
+                                        "IntervalSeconds": 1,
+                                        "MaxAttempts": 2,
+                                        "BackoffRate": 1.2
+                                    }
+                                ],
+                                "End": true
                             }
                         }
                     }
+
+    FaceApiModelStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - FaceApiModel
+                    - Name
+            RetentionInDays: 7
+
+    FaceApiModelStateMachine:
+        Type: AWS::StepFunctions::StateMachine
+        Properties:
+            StateMachineName: !Sub
+                - ${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - FaceApiModel
+                    - Name
+            RoleArn: !GetAtt AnalysisStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt FaceApiModelStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
+            DefinitionString:
+                !Sub |-
+                    {
+                        "Comment": "Run open source faceapi model to pre-analyze faces for all frame images.",
+                        "StartAt": "Prepare faceapi model iterators",
+                        "States": {
+                            "Prepare faceapi model iterators": {
+                                "Type": "Task",
+                                "Resource": "arn:aws:states:::lambda:invoke",
+                                "OutputPath": "$.Payload",
+                                "Parameters": {
+                                    "FunctionName": "${AnalysisVideoLambda.Arn}",
+                                    "Payload": {
+                                        "operation": "StatePrepareFaceApiModelIterators",
+                                        "input.$": "$.input",
+                                        "data.$": "$.data"
+                                    }
+                                },
+                                "Retry": [
+                                    {
+                                        "ErrorEquals": [
+                                            "Lambda.ServiceException",
+                                            "Lambda.AWSLambdaException",
+                                            "Lambda.SdkClientException",
+                                            "Lambda.TooManyRequestsException"
+                                        ],
+                                        "IntervalSeconds": 1,
+                                        "MaxAttempts": 2,
+                                        "BackoffRate": 1.2
+                                    }
+                                ],
+                                "Next": "Map faceapi model iterators"
+                            },
+                            "Map faceapi model iterators": {
+                                "Type": "Map",
+                                "MaxConcurrency": 10,
+                                "ItemsPath": "$.data.iterators",
+                                "ItemProcessor": {
+                                    "ProcessorConfig": {
+                                        "Mode": "INLINE"
+                                    },
+                                    "StartAt": "Run faceapi model",
+                                    "States": {
+                                        "Run faceapi model": {
+                                            "Type": "Task",
+                                            "Resource": "arn:aws:states:::lambda:invoke",
+                                            "OutputPath": "$.Payload",
+                                            "Parameters": {
+                                                "FunctionName": "${RunFaceApiLambda.Arn}",
+                                                "Payload.$": "$"
+                                            },
+                                            "Retry": [
+                                                {
+                                                    "ErrorEquals": [
+                                                        "CodeArtifactUserPendingException"
+                                                    ],
+                                                    "MaxAttempts": 4,
+                                                    "IntervalSeconds": 10,
+                                                    "BackoffRate": 1.2
+                                                },
+                                                {
+                                                    "ErrorEquals": [
+                                                        "AccessDeniedException",
+                                                        "ResourceNotFoundException",
+                                                        "ValidationException"
+                                                    ],
+                                                    "MaxAttempts": 0
+                                                },
+                                                {
+                                                    "ErrorEquals": [
+                                                        "InternalServerException",
+                                                        "ModelErrorException",
+                                                        "ModelNotReadyException",
+                                                        "ModelTimeoutException",
+                                                        "ServiceQuotaExceededException",
+                                                        "ThrottlingException",
+                                                        "ServiceUnavailableException"
+                                                    ],
+                                                    "IntervalSeconds": 60,
+                                                    "MaxAttempts": 10,
+                                                    "BackoffRate": 1.2
+                                                },
+                                                {
+                                                    "ErrorEquals": [
+                                                        "Lambda.ServiceException",
+                                                        "Lambda.AWSLambdaException",
+                                                        "Lambda.SdkClientException",
+                                                        "Lambda.TooManyRequestsException"
+                                                    ],
+                                                    "IntervalSeconds": 1,
+                                                    "MaxAttempts": 2,
+                                                    "BackoffRate": 1.2
+                                                }
+                                            ],
+                                            "End": true
+                                        }
+                                    }
+                                },
+                                "ResultPath": "$.data.iterators",
+                                "Next": "Run faceapi model completed"
+                            },
+                            "Run faceapi model completed": {
+                                "Type": "Task",
+                                "OutputPath": "$.Payload",
+                                "Resource": "arn:aws:states:::lambda:invoke",
+                                "Parameters": {
+                                    "FunctionName": "${AnalysisVideoLambda.Arn}",
+                                    "Payload": {
+                                        "operation": "StateRunFaceApiModelCompleted",
+                                        "input.$": "$.input",
+                                        "data.$": "$.data"
+                                    }
+                                },
+                                "End": true,
+                                "Retry": [
+                                    {
+                                        "ErrorEquals": [
+                                            "States.ALL"
+                                        ],
+                                        "IntervalSeconds": 1,
+                                        "MaxAttempts": 4,
+                                        "BackoffRate": 1.2
+                                    }
+                                ]
+                            }
+                        }
+                    }
+
+    FrameBasedDetectionStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - FrameBasedDetection
+                    - Name
+            RetentionInDays: 7
 
     FrameBasedDetectionStateMachine:
         Type: AWS::StepFunctions::StateMachine
@@ -4768,6 +5319,12 @@ Resources:
                     - FrameBasedDetection
                     - Name
             RoleArn: !GetAtt AnalysisStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt FrameBasedDetectionStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
@@ -4876,6 +5433,23 @@ Resources:
                         }
                     }
 
+    CustomModelDetectionStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - CustomModelDetection
+                    - Name
+            RetentionInDays: 7
+
     CustomModelDetectionStateMachine:
         Type: AWS::StepFunctions::StateMachine
         Properties:
@@ -4886,6 +5460,12 @@ Resources:
                     - CustomModelDetection
                     - Name
             RoleArn: !GetAtt AnalysisStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt CustomModelDetectionStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
@@ -5141,6 +5721,23 @@ Resources:
                         }
                     }
 
+    AnalysisVideoStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - AnalysisVideo
+                    - Name
+            RetentionInDays: 7
+
     AnalysisVideoStateMachine:
         Type: AWS::StepFunctions::StateMachine
         Properties:
@@ -5151,6 +5748,12 @@ Resources:
                     - AnalysisVideo
                     - Name
             RoleArn: !GetAtt AnalysisStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt AnalysisVideoStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
@@ -5165,26 +5768,33 @@ Resources:
                                         "States": {
                                             "Video based detection iterators": {
                                                 "Type": "Task",
-                                                "Resource": "${AnalysisVideoLambda.Arn}",
+                                                "Resource": "arn:aws:states:::lambda:invoke",
+                                                "OutputPath": "$.Payload",
                                                 "Parameters": {
-                                                    "operation": "prepare-video-detection-iterators",
-                                                    "uuid.$": "$.uuid",
-                                                    "input.$": "$.input",
-                                                    "data.$": "$.data",
-                                                    "status": "NOT_STARTED",
-                                                    "progress": 0
+                                                    "FunctionName": "${AnalysisVideoLambda.Arn}",
+                                                    "Payload": {
+                                                        "operation": "prepare-video-detection-iterators",
+                                                        "uuid.$": "$.uuid",
+                                                        "input.$": "$.input",
+                                                        "data.$": "$.data",
+                                                        "status": "NOT_STARTED",
+                                                        "progress": 0
+                                                    }
                                                 },
-                                                "Next": "Video based analysis",
                                                 "Retry": [
                                                     {
                                                         "ErrorEquals": [
-                                                            "States.ALL"
+                                                            "Lambda.ServiceException",
+                                                            "Lambda.AWSLambdaException",
+                                                            "Lambda.SdkClientException",
+                                                            "Lambda.TooManyRequestsException"
                                                         ],
                                                         "IntervalSeconds": 1,
                                                         "MaxAttempts": 2,
-                                                        "BackoffRate": 1.1
+                                                        "BackoffRate": 1.2
                                                     }
-                                                ]
+                                                ],
+                                                "Next": "Video based analysis"
                                             },
                                             "Video based analysis": {
                                                 "Type": "Map",
@@ -5220,15 +5830,16 @@ Resources:
                                         }
                                     },
                                     {
-                                        "StartAt": "Run dynamic frame segmentation",
+                                        "StartAt": "Configure pre-analysis iterators",
                                         "States": {
-                                            "Run dynamic frame segmentation": {
+                                            "Configure pre-analysis iterators": {
                                                 "Type": "Task",
-                                                "Resource": "arn:aws:states:::states:startExecution.sync:2",
+                                                "Resource": "arn:aws:states:::lambda:invoke",
+                                                "OutputPath": "$.Payload",
                                                 "Parameters": {
-                                                    "StateMachineArn": "${DynamicFrameSegmentationStateMachine.Arn}",
-                                                    "Input": {
-                                                        "operation": "prepare-segment-detection",
+                                                    "FunctionName": "${AnalysisVideoLambda.Arn}",
+                                                    "Payload": {
+                                                        "operation": "StateConfigurePreAnalysisIterators",
                                                         "uuid.$": "$.uuid",
                                                         "input.$": "$.input",
                                                         "data.$": "$.data",
@@ -5236,7 +5847,74 @@ Resources:
                                                         "progress": 0
                                                     }
                                                 },
-                                                "OutputPath": "$.Output",
+                                                "Retry": [
+                                                    {
+                                                        "ErrorEquals": [
+                                                            "Lambda.ServiceException",
+                                                            "Lambda.AWSLambdaException",
+                                                            "Lambda.SdkClientException",
+                                                            "Lambda.TooManyRequestsException"
+                                                        ],
+                                                        "IntervalSeconds": 1,
+                                                        "MaxAttempts": 2,
+                                                        "BackoffRate": 1.2
+                                                    }
+                                                ],
+                                                "Next": "Map pre-analysis iterators"
+                                            },
+                                            "Map pre-analysis iterators": {
+                                                "Type": "Map",
+                                                "MaxConcurrency": 10,
+                                                "ItemsPath": "$.data.iterators",
+                                                "ItemProcessor": {
+                                                    "ProcessorConfig": {
+                                                        "Mode": "INLINE"
+                                                    },
+                                                    "StartAt": "Run preprocess state machine",
+                                                    "States": {
+                                                        "Run preprocess state machine": {
+                                                            "Type": "Task",
+                                                            "Resource": "arn:aws:states:::states:startExecution.sync:2",
+                                                            "Parameters": {
+                                                                "StateMachineArn.$": "$.preAnalysisStateMachineArn",
+                                                                "Input.$": "$"
+                                                            },
+                                                            "OutputPath": "$.Output",
+                                                            "End": true
+                                                        }
+                                                    }
+                                                },
+                                                "ResultPath": "$.data.iterators",
+                                                "Next": "Pre-analysis iterators completed"
+                                            },
+                                            "Pre-analysis iterators completed": {
+                                                "Type": "Task",
+                                                "Resource": "arn:aws:states:::lambda:invoke",
+                                                "OutputPath": "$.Payload",
+                                                "Parameters": {
+                                                    "FunctionName": "${AnalysisVideoLambda.Arn}",
+                                                    "Payload": {
+                                                        "operation": "StatePreAnalysisIteratorsCompleted",
+                                                        "uuid.$": "$.uuid",
+                                                        "input.$": "$.input",
+                                                        "data.$": "$.data",
+                                                        "status": "NOT_STARTED",
+                                                        "progress": 0
+                                                    }
+                                                },
+                                                "Retry": [
+                                                    {
+                                                        "ErrorEquals": [
+                                                            "Lambda.ServiceException",
+                                                            "Lambda.AWSLambdaException",
+                                                            "Lambda.SdkClientException",
+                                                            "Lambda.TooManyRequestsException"
+                                                        ],
+                                                        "IntervalSeconds": 1,
+                                                        "MaxAttempts": 2,
+                                                        "BackoffRate": 1.2
+                                                    }
+                                                ],
                                                 "Next": "Start frame-based analysis"
                                             },
                                             "Start frame-based analysis": {
@@ -5247,14 +5925,18 @@ Resources:
                                                         "States": {
                                                             "Frame based detection iterators": {
                                                                 "Type": "Task",
-                                                                "Resource": "${AnalysisVideoLambda.Arn}",
+                                                                "Resource": "arn:aws:states:::lambda:invoke",
+                                                                "OutputPath": "$.Payload",
                                                                 "Parameters": {
-                                                                    "operation": "prepare-frame-detection-iterators",
-                                                                    "uuid.$": "$.uuid",
-                                                                    "input.$": "$.input",
-                                                                    "data.$": "$.data",
-                                                                    "status": "NOT_STARTED",
-                                                                    "progress": 0
+                                                                    "FunctionName": "${AnalysisVideoLambda.Arn}",
+                                                                    "Payload": {
+                                                                        "operation": "prepare-frame-detection-iterators",
+                                                                        "uuid.$": "$.uuid",
+                                                                        "input.$": "$.input",
+                                                                        "data.$": "$.data",
+                                                                        "status": "NOT_STARTED",
+                                                                        "progress": 0
+                                                                    }
                                                                 },
                                                                 "Next": "Frame based analysis",
                                                                 "Retry": [
@@ -5306,26 +5988,33 @@ Resources:
                                                         "States": {
                                                             "Custom model detection iterators": {
                                                                 "Type": "Task",
-                                                                "Resource": "${AnalysisVideoLambda.Arn}",
+                                                                "Resource": "arn:aws:states:::lambda:invoke",
+                                                                "OutputPath": "$.Payload",
                                                                 "Parameters": {
-                                                                    "operation": "prepare-custom-detection-iterators",
-                                                                    "uuid.$": "$.uuid",
-                                                                    "input.$": "$.input",
-                                                                    "data.$": "$.data",
-                                                                    "status": "NOT_STARTED",
-                                                                    "progress": 0
+                                                                    "FunctionName": "${AnalysisVideoLambda.Arn}",
+                                                                    "Payload": {
+                                                                        "operation": "prepare-custom-detection-iterators",
+                                                                        "uuid.$": "$.uuid",
+                                                                        "input.$": "$.input",
+                                                                        "data.$": "$.data",
+                                                                        "status": "NOT_STARTED",
+                                                                        "progress": 0
+                                                                    }
                                                                 },
-                                                                "Next": "Custom model analysis",
                                                                 "Retry": [
                                                                     {
                                                                         "ErrorEquals": [
-                                                                            "States.ALL"
+                                                                            "Lambda.ServiceException",
+                                                                            "Lambda.AWSLambdaException",
+                                                                            "Lambda.SdkClientException",
+                                                                            "Lambda.TooManyRequestsException"
                                                                         ],
                                                                         "IntervalSeconds": 1,
                                                                         "MaxAttempts": 2,
-                                                                        "BackoffRate": 1.1
+                                                                        "BackoffRate": 1.2
                                                                     }
-                                                                ]
+                                                                ],
+                                                                "Next": "Custom model analysis"
                                                             },
                                                             "Custom model analysis": {
                                                                 "Type": "Map",
@@ -5371,23 +6060,30 @@ Resources:
                             },
                             "Video analysis completed": {
                                 "Type": "Task",
-                                "Resource": "${AnalysisVideoLambda.Arn}",
+                                "Resource": "arn:aws:states:::lambda:invoke",
+                                "OutputPath": "$.Payload",
                                 "Parameters": {
-                                    "operation": "job-completed",
-                                    "stateExecution.$": "$$.Execution",
-                                    "parallelStateOutputs.$": "$"
+                                    "FunctionName": "${AnalysisVideoLambda.Arn}",
+                                    "Payload": {
+                                        "operation": "job-completed",
+                                        "stateExecution.$": "$$.Execution",
+                                        "parallelStateOutputs.$": "$"
+                                    }
                                 },
-                                "End": true,
                                 "Retry": [
                                     {
                                         "ErrorEquals": [
-                                            "States.ALL"
+                                            "Lambda.ServiceException",
+                                            "Lambda.AWSLambdaException",
+                                            "Lambda.SdkClientException",
+                                            "Lambda.TooManyRequestsException"
                                         ],
                                         "IntervalSeconds": 1,
                                         "MaxAttempts": 2,
-                                        "BackoffRate": 1.1
+                                        "BackoffRate": 1.2
                                     }
-                                ]
+                                ],
+                                "End": true
                             }
                         }
                     }
@@ -5602,6 +6298,23 @@ Resources:
                     ENV_BEDROCK_MODEL_ID: !Ref BedrockModelId
                     ENV_BEDROCK_MODEL_VER: !Ref BedrockModelVersion
 
+    AnalysisAudioStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - AnalysisAudio
+                    - Name
+            RetentionInDays: 7
+
     AnalysisAudioStateMachine:
         Type: AWS::StepFunctions::StateMachine
         Properties:
@@ -5612,6 +6325,12 @@ Resources:
                     - AnalysisAudio
                     - Name
             RoleArn: !GetAtt AnalysisStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt AnalysisAudioStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
@@ -6257,6 +6976,23 @@ Resources:
                     ENV_BEDROCK_MODEL_ID: !Ref BedrockModelId
                     ENV_BEDROCK_MODEL_VER: !Ref BedrockModelVersion
 
+    AnalysisImageStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - AnalysisImage
+                    - Name
+            RetentionInDays: 7
+
     AnalysisImageStateMachine:
         Type: AWS::StepFunctions::StateMachine
         Properties:
@@ -6267,6 +7003,12 @@ Resources:
                     - AnalysisImage
                     - Name
             RoleArn: !GetAtt AnalysisStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt AnalysisImageStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
@@ -6512,6 +7254,23 @@ Resources:
                     ENV_BEDROCK_MODEL_ID: !Ref BedrockModelId
                     ENV_BEDROCK_MODEL_VER: !Ref BedrockModelVersion
 
+    AnalysisDocumentStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - AnalysisDocument
+                    - Name
+            RetentionInDays: 7
+
     AnalysisDocumentStateMachine:
         Type: AWS::StepFunctions::StateMachine
         Properties:
@@ -6522,6 +7281,12 @@ Resources:
                     - AnalysisDocument
                     - Name
             RoleArn: !GetAtt AnalysisStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt AnalysisDocumentStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
@@ -6710,6 +7475,23 @@ Resources:
                     ENV_BEDROCK_MODEL_ID: !Ref BedrockModelId
                     ENV_BEDROCK_MODEL_VER: !Ref BedrockModelVersion
 
+    AnalysisPostProcessStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - AnalysisPostProcess
+                    - Name
+            RetentionInDays: 7
+
     AnalysisPostProcessStateMachine:
         Type: AWS::StepFunctions::StateMachine
         Properties:
@@ -6720,6 +7502,12 @@ Resources:
                     - AnalysisPostProcess
                     - Name
             RoleArn: !GetAtt AnalysisStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt AnalysisPostProcessStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
@@ -6991,6 +7779,23 @@ Resources:
                     ENV_DEFAULT_MINCONFIDENCE: !Ref DefaultMinConfidence
                     ENV_AI_OPTIONS_S3KEY: !Ref AIOptionsS3Key
 
+    AnalysisMainStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - AnalysisMain
+                    - Name
+            RetentionInDays: 7
+
     AnalysisMainStateMachine:
         Type: AWS::StepFunctions::StateMachine
         Properties:
@@ -7001,6 +7806,12 @@ Resources:
                     - AnalysisMain
                     - Name
             RoleArn: !GetAtt AnalysisStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt AnalysisMainStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
@@ -7684,6 +8495,12 @@ Resources:
     ################################################################################
     MainStateMachineServiceRole:
         Type: AWS::IAM::Role
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W11
+                        reason: CloudWatch API actions, such as CreateLogDelivery and DescribeLogGroups, do not support Resource types defined by Amazon CloudWatch Logs. Refer to https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html
         Properties:
             AssumeRolePolicyDocument:
                 Version: "2012-10-17"
@@ -7723,6 +8540,37 @@ Resources:
                                     - events:PutRule
                                     - events:DescribeRule
                                 Resource: !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/StepFunctionsGetEventsForStepFunctionsExecutionRule
+                            -
+                                Effect: Allow
+                                Action:
+                                    - logs:CreateLogDelivery
+                                    - logs:GetLogDelivery
+                                    - logs:UpdateLogDelivery
+                                    - logs:DeleteLogDelivery
+                                    - logs:ListLogDeliveries
+                                    - logs:PutResourcePolicy
+                                    - logs:DescribeResourcePolicies
+                                    - logs:DescribeLogGroups
+                                    - logs:CreateLogStream
+                                    - logs:PutLogEvents
+                                Resource: "*"
+
+    MainStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - Main
+                    - Name
+            RetentionInDays: 7
 
     MainStateMachine:
         Type: AWS::StepFunctions::StateMachine
@@ -7734,6 +8582,12 @@ Resources:
                     - Main
                     - Name
             RoleArn: !GetAtt MainStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt MainStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
@@ -8334,6 +9188,12 @@ Resources:
 
     AssetRemovalStateMachineServiceRole:
         Type: AWS::IAM::Role
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W11
+                        reason: CloudWatch API actions, such as CreateLogDelivery and DescribeLogGroups, do not support Resource types defined by Amazon CloudWatch Logs. Refer to https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html
         Properties:
             AssumeRolePolicyDocument:
                 Version: "2012-10-17"
@@ -8386,6 +9246,37 @@ Resources:
                                     - events:PutRule
                                     - events:DescribeRule
                                 Resource: !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/StepFunctionsGetEventsForStepFunctionsExecutionRule
+                            -
+                                Effect: Allow
+                                Action:
+                                    - logs:CreateLogDelivery
+                                    - logs:GetLogDelivery
+                                    - logs:UpdateLogDelivery
+                                    - logs:DeleteLogDelivery
+                                    - logs:ListLogDeliveries
+                                    - logs:PutResourcePolicy
+                                    - logs:DescribeResourcePolicies
+                                    - logs:DescribeLogGroups
+                                    - logs:CreateLogStream
+                                    - logs:PutLogEvents
+                                Resource: "*"
+
+    AssetRemovalStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - AssetRemoval
+                    - Name
+            RetentionInDays: 7
 
     AssetRemovalStateMachine:
         Type: AWS::StepFunctions::StateMachine
@@ -8397,6 +9288,12 @@ Resources:
                     - AssetRemoval
                     - Name
             RoleArn: !GetAtt AssetRemovalStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt AssetRemovalStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
@@ -8480,7 +9377,9 @@ Resources:
                                     - logs:CreateLogGroup
                                     - logs:CreateLogStream
                                     - logs:PutLogEvents
-                                Resource: !GetAtt UpdateFaceIndexerLogGroup.Arn
+                                Resource:
+                                    - !GetAtt UpdateFaceIndexerLogGroup.Arn
+                                    - !GetAtt RunFaceApiLogGroup.Arn
                             # S3 - proxy bucket
                             -
                                 Effect: Allow
@@ -8526,7 +9425,13 @@ Resources:
                                 Action:
                                     - rekognition:DescribeCollection
                                     - rekognition:ListFaces
+                                    - rekognition:DetectFaces
                                 Resource: "*"
+                            # Rekognition - auto face indexer
+                            -
+                                Effect: Allow
+                                Action: rekognition:IndexFaces
+                                Resource: !Sub arn:aws:rekognition:${AWS::Region}:${AWS::AccountId}:collection/*
 
     UpdateFaceIndexerLambda:
         Type: AWS::Lambda::Function
@@ -8551,7 +9456,7 @@ Resources:
                 - Node
                 - Runtime
                 - Version
-            MemorySize: 256
+            MemorySize: 1770
             Timeout: 900
             Handler: index.handler
             Role: !GetAtt UpdateFaceIndexerRole.Arn
@@ -8566,6 +9471,7 @@ Resources:
             Layers:
                 - !Ref AwsSdkLayer
                 - !Ref CoreLibLayer
+                - !Ref JimpLayer
             TracingConfig:
                 Mode: Active
             Environment:
@@ -8583,8 +9489,71 @@ Resources:
                         - 1
                         - 0
 
+    # Run FaceApi model
+    RunFaceApiLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/lambda/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - RunFaceApi
+                    - Name
+            RetentionInDays: 7
+
+    RunFaceApiLambda:
+        Type: AWS::Lambda::Function
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W89
+                        reason: Workflow not using VPC
+                    -
+                        id: W92
+                        reason: Workflow not limiting simultaneous executions
+        Properties:
+            FunctionName: !Sub
+                - ${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - RunFaceApi
+                    - Name
+            Description: !Sub (${SolutionLowerCaseId}) run faceapi lambda
+            MemorySize: 3539
+            Timeout: 900
+            PackageType: Image
+            Role: !GetAtt UpdateFaceIndexerRole.Arn
+            Code:
+                ImageUri: !Ref FaceApiImageUri
+            Architectures:
+                - x86_64
+            TracingConfig:
+                Mode: Active
+            Environment:
+                Variables:
+                    ENV_REGION: !Ref AWS::Region
+                    ENV_EXPECTED_BUCKET_OWNER: !Ref AWS::AccountId
+                    ENV_CUSTOM_USER_AGENT: !Ref CustomUserAgent
+                    ENV_ANONYMOUS_USAGE: !Ref AnonymousUsage
+                    ENV_SOLUTION_UUID: !Ref SolutionUuid
+                    ENV_SOLUTION_ID: !Ref SolutionId
+                    ENV_RESOURCE_PREFIX: !Ref ResourcePrefix
+
     UpdateFaceIndexerStateMachineServiceRole:
         Type: AWS::IAM::Role
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W11
+                        reason: CloudWatch API actions, such as CreateLogDelivery and DescribeLogGroups, do not support Resource types defined by Amazon CloudWatch Logs. Refer to https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html
         Properties:
             AssumeRolePolicyDocument:
                 Version: "2012-10-17"
@@ -8606,6 +9575,7 @@ Resources:
                                 Action: lambda:InvokeFunction
                                 Resource:
                                     - !GetAtt UpdateFaceIndexerLambda.Arn
+                                    - !GetAtt RunFaceApiLambda.Arn
                             # Below polices are needed for Service Integration of nested workflows
                             # https://docs.aws.amazon.com/step-functions/latest/dg/stepfunctions-iam.html
                             -
@@ -8637,6 +9607,37 @@ Resources:
                                     - events:PutRule
                                     - events:DescribeRule
                                 Resource: !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/StepFunctionsGetEventsForStepFunctionsExecutionRule
+                            -
+                                Effect: Allow
+                                Action:
+                                    - logs:CreateLogDelivery
+                                    - logs:GetLogDelivery
+                                    - logs:UpdateLogDelivery
+                                    - logs:DeleteLogDelivery
+                                    - logs:ListLogDeliveries
+                                    - logs:PutResourcePolicy
+                                    - logs:DescribeResourcePolicies
+                                    - logs:DescribeLogGroups
+                                    - logs:CreateLogStream
+                                    - logs:PutLogEvents
+                                Resource: "*"
+
+    UpdateFaceIndexerStateMachineLogGroup:
+        Type: AWS::Logs::LogGroup
+        Metadata:
+            cfn_nag:
+                rules_to_suppress:
+                    -
+                        id: W84
+                        reason: Use default encryption. Disable additional KMS encryption requirement. https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Properties:
+            LogGroupName: !Sub
+                - /aws/stepfunctions/${ResourcePrefix}-${name}
+                - name: !FindInMap
+                    - Workflow
+                    - UpdateFaceIndexer
+                    - Name
+            RetentionInDays: 7
 
     UpdateFaceIndexerStateMachine:
         Type: AWS::StepFunctions::StateMachine
@@ -8648,13 +9649,19 @@ Resources:
                     - UpdateFaceIndexer
                     - Name
             RoleArn: !GetAtt UpdateFaceIndexerStateMachineServiceRole.Arn
+            LoggingConfiguration:
+                Destinations:
+                    - CloudWatchLogsLogGroup:
+                        LogGroupArn: !GetAtt UpdateFaceIndexerStateMachineLogGroup.Arn
+                IncludeExecutionData: true
+                Level: ALL
             DefinitionString:
                 !Sub |-
                     {
                         "Comment": "Update Face Indexer state machine to update indexed faces to search engine, db table, and metadata files generated by Media2Cloud",
-                        "StartAt": "Import collection or update face indexer?",
+                        "StartAt": "Import, index, or update?",
                         "States": {
-                            "Import collection or update face indexer?": {
+                            "Import, index, or update?": {
                                 "Type": "Choice",
                                 "Choices": [
                                     {
@@ -8669,16 +9676,33 @@ Resources:
                                             }
                                         ],
                                         "Next": "Import collection"
+                                    },
+                                    {
+                                        "And": [
+                                            {
+                                                "Variable": "$.input.action",
+                                                "IsPresent": true
+                                            },
+                                            {
+                                                "Variable": "$.input.action",
+                                                "StringEquals": "index"
+                                            }
+                                        ],
+                                        "Next": "Prepare face indexing iterators"
                                     }
                                 ],
                                 "Default": "Prepare iterators"
                             },
                             "Import collection": {
                                 "Type": "Task",
-                                "Resource": "${UpdateFaceIndexerLambda.Arn}",
+                                "Resource": "arn:aws:states:::lambda:invoke",
+                                "OutputPath": "$.Payload",
                                 "Parameters": {
-                                    "operation": "StateImportCollection",
-                                    "input.$": "$.input"
+                                    "FunctionName": "${UpdateFaceIndexerLambda.Arn}",
+                                    "Payload": {
+                                        "operation": "StateImportCollection",
+                                        "input.$": "$.input"
+                                    }
                                 },
                                 "Next": "More items?",
                                 "Retry": [
@@ -8714,12 +9738,180 @@ Resources:
                             "Import collection completed": {
                                 "Type": "Succeed"
                             },
+                            "Prepare face indexing iterators": {
+                                "Type": "Task",
+                                "Resource": "arn:aws:states:::lambda:invoke",
+                                "OutputPath": "$.Payload",
+                                "Parameters": {
+                                    "FunctionName": "${UpdateFaceIndexerLambda.Arn}",
+                                    "Payload": {
+                                        "operation": "StatePrepareFaceIndexingIterators",
+                                        "input.$": "$.input",
+                                        "data.$": "$.data"
+                                    }
+                                },
+                                "Retry": [
+                                    {
+                                        "ErrorEquals": [
+                                            "Lambda.ServiceException",
+                                            "Lambda.AWSLambdaException",
+                                            "Lambda.SdkClientException",
+                                            "Lambda.TooManyRequestsException"
+                                        ],
+                                        "IntervalSeconds": 1,
+                                        "MaxAttempts": 2,
+                                        "BackoffRate": 1.2
+                                    }
+                                ],
+                                "Next": "Map face indexing processing"
+                            },
+                            "Map face indexing processing": {
+                                "Type": "Map",
+                                "MaxConcurrency": 5,
+                                "ItemsPath": "$.data.iterators",
+                                "ItemProcessor": {
+                                    "ProcessorConfig": {
+                                        "Mode": "INLINE"
+                                    },
+                                    "StartAt": "Run FaceApi model",
+                                    "States": {
+                                        "Run FaceApi model": {
+                                            "Type": "Task",
+                                            "Resource": "arn:aws:states:::lambda:invoke",
+                                            "OutputPath": "$.Payload",
+                                            "Parameters": {
+                                                "FunctionName": "${RunFaceApiLambda.Arn}",
+                                                "Payload.$": "$"
+                                            },
+                                            "Retry": [
+                                                {
+                                                    "ErrorEquals": [
+                                                        "CodeArtifactUserPendingException"
+                                                    ],
+                                                    "MaxAttempts": 4,
+                                                    "IntervalSeconds": 10,
+                                                    "BackoffRate": 1.2
+                                                },
+                                                {
+                                                    "ErrorEquals": [
+                                                        "AccessDeniedException",
+                                                        "ResourceNotFoundException",
+                                                        "ValidationException"
+                                                    ],
+                                                    "MaxAttempts": 0
+                                                },
+                                                {
+                                                    "ErrorEquals": [
+                                                        "InternalServerException",
+                                                        "ModelErrorException",
+                                                        "ModelNotReadyException",
+                                                        "ModelTimeoutException",
+                                                        "ServiceQuotaExceededException",
+                                                        "ThrottlingException",
+                                                        "ServiceUnavailableException"
+                                                    ],
+                                                    "IntervalSeconds": 60,
+                                                    "MaxAttempts": 10,
+                                                    "BackoffRate": 1.2
+                                                },
+                                                {
+                                                    "ErrorEquals": [
+                                                        "Lambda.ServiceException",
+                                                        "Lambda.AWSLambdaException",
+                                                        "Lambda.SdkClientException",
+                                                        "Lambda.TooManyRequestsException"
+                                                    ],
+                                                    "IntervalSeconds": 1,
+                                                    "MaxAttempts": 2,
+                                                    "BackoffRate": 1.2
+                                                }
+                                            ],
+                                            "Next": "More face images?"
+                                        },
+                                        "More face images?": {
+                                            "Type": "Choice",
+                                            "Choices": [
+                                                {
+                                                    "Variable": "$.faceApiStatus",
+                                                    "StringEquals": "COMPLETED",
+                                                    "Next": "Index faces to collection"
+                                                }
+                                            ],
+                                            "Default": "Run FaceApi model"
+                                        },
+                                        "Index faces to collection": {
+                                            "Type": "Task",
+                                            "OutputPath": "$.Payload",
+                                            "Resource": "arn:aws:states:::lambda:invoke",
+                                            "Parameters": {
+                                                "FunctionName": "${UpdateFaceIndexerLambda.Arn}",
+                                                "Payload.$": "$"
+                                            },
+                                            "Next": "More faces to index?",
+                                            "Retry": [
+                                                {
+                                                    "ErrorEquals": [
+                                                        "States.ALL"
+                                                    ],
+                                                    "IntervalSeconds": 1,
+                                                    "MaxAttempts": 4,
+                                                    "BackoffRate": 1.2
+                                                }
+                                            ]
+                                        },
+                                        "More faces to index?": {
+                                            "Type": "Choice",
+                                            "Choices": [
+                                                {
+                                                    "Variable": "$.indexStatus",
+                                                    "StringEquals": "COMPLETED",
+                                                    "Next": "Index faces completed"
+                                                }
+                                            ],
+                                            "Default": "Index faces to collection"
+                                        },
+                                        "Index faces completed": {
+                                            "Type": "Succeed"
+                                        }
+                                    }
+                                },
+                                "ResultPath": "$.data.iterators",
+                                "Next": "Indexing faces iterators completed"
+                            },
+                            "Indexing faces iterators completed": {
+                                "Type": "Task",
+                                "OutputPath": "$.Payload",
+                                "Resource": "arn:aws:states:::lambda:invoke",
+                                "Parameters": {
+                                    "FunctionName": "${UpdateFaceIndexerLambda.Arn}",
+                                    "Payload": {
+                                        "operation": "StateFaceIndexingIteratorsCompleted",
+                                        "input.$": "$.input",
+                                        "data.$": "$.data"
+                                    }
+                                },
+                                "End": true,
+                                "Retry": [
+                                    {
+                                        "ErrorEquals": [
+                                            "States.ALL"
+                                        ],
+                                        "IntervalSeconds": 1,
+                                        "MaxAttempts": 4,
+                                        "BackoffRate": 1.2
+                                    }
+                                ]
+                            },
                             "Prepare iterators": {
                                 "Type": "Task",
-                                "Resource": "${UpdateFaceIndexerLambda.Arn}",
+                                "OutputPath": "$.Payload",
+                                "Resource": "arn:aws:states:::lambda:invoke",
                                 "Parameters": {
-                                    "operation": "StatePrepareIterators",
-                                    "input.$": "$.input"
+                                    "FunctionName": "${UpdateFaceIndexerLambda.Arn}",
+                                    "Payload": {
+                                        "operation": "StatePrepareIterators",
+                                        "input.$": "$.input"
+                                    }
                                 },
                                 "Next": "Update record (iterations)",
                                 "Retry": [
@@ -8735,7 +9927,7 @@ Resources:
                             },
                             "Update record (iterations)": {
                                 "Type": "Map",
-                                "MaxConcurrency": 40,
+                                "MaxConcurrency": 10,
                                 "ItemsPath": "$.iterators",
                                 "ItemSelector": {
                                     "operation": "StateUpdateRecord",
@@ -8750,7 +9942,12 @@ Resources:
                                     "States": {
                                         "Update record (per content)": {
                                             "Type": "Task",
-                                            "Resource": "${UpdateFaceIndexerLambda.Arn}",
+                                            "Resource": "arn:aws:states:::lambda:invoke",
+                                            "OutputPath": "$.Payload",
+                                            "Parameters": {
+                                                "FunctionName": "${UpdateFaceIndexerLambda.Arn}",
+                                                "Payload.$": "$"
+                                            },
                                             "End": true,
                                             "Retry": [
                                                 {

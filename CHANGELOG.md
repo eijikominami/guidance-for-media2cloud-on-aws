@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.8] - 2025-11-10
+### Bugfixes
+- Remove OutputEncryptionKMSKeyId from Amazon Transcribe StartTranscriptionJob api as alias/aws/s3 is no longer required.
+
+## [4.0.7] - 2025-10-03
+### Features
+- Auto extract face name from the file name. Strip any ending numbers from the file name, i.e, John Doe 2.jpg would have the name as John Doe instead of John Doe 2.
+
+## [4.0.6] - 2025-09-16
+### Bugfixes
+- Pinned python package versions for all docker images to avoid dependency issues
+
+
+## [4.0.5] - 2025-02-07
+### Bugfixes
+- faiss new version requires swig. Fix the Faiss version to 1.9.0
+- update all packages to the latest
+- remove computeChecksums flag as it is not used by S3Client
+- workaround for data integrity check that fails the multipart upload from browser, https://github.com/aws/aws-sdk-js-v3/issues/6810
+
 ## [4.0.4] - 2024-06-25
 ### Bugfixes
 - Fix ingest image error on TIFF (CMYK colorspace) image format.

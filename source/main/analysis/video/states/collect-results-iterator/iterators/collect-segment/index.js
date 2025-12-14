@@ -4,7 +4,6 @@ const PATH = require('node:path');
 const {
   GetSegmentDetectionCommand,
 } = require('@aws-sdk/client-rekognition');
-const Jimp = require('jimp');
 const {
   AnalysisTypes: {
     Rekognition: {
@@ -18,13 +17,16 @@ const {
     fromTimecode,
     toTimecode,
   },
+  JimpHelper: {
+    imageFromS3,
+    distanceToBlack,
+  },
 } = require('core-lib');
 const BaseCollectResultsIterator = require('../shared/baseCollectResultsIterator');
 
 const NAMED_KEY = 'Segments';
 const PREFIX_FRAMECAPTURE = 'transcode/frameCapture';
 const JSON_FRAME_HASH = 'frameHash.json';
-const BLACKFRAME_HASH = '00000000000';
 let TimecodeSettings = {
   enumFPS: undefined,
   dropFrame: undefined,
@@ -392,7 +394,7 @@ async function _findFramesInShotSegment(
 
       // Potentially a black frame?
       const distance = _perceptualDistanceToBlackFrame(frame);
-      if (distance >= 0 && distance < 10) {
+      if (distance >= 0 && distance < 0.09) {
         transitionCandidates.push({
           ...frame,
           frameIdx,
@@ -468,13 +470,9 @@ function _perceptualDistanceToBlackFrame(frame) {
 
   // perceptual hash provides only indication of whether a frame
   // is perceptually similar to a black frame
-  const distance = Math.round(
-    Math.abs(
-      Jimp.compareHashes(hash, BLACKFRAME_HASH) * 100
-    )
-  );
+  const d = distanceToBlack(hash);
 
-  return distance;
+  return d;
 }
 
 async function _checkBlackFrames(
@@ -482,17 +480,25 @@ async function _checkBlackFrames(
   prefix,
   candidates
 ) {
-  const minLaplacian = Math.min(
-    ...candidates
-      .map((x) =>
-        x.laplacian)
-  );
+  let qualified = candidates;
+
+  // entire shot are black frames?
+  let laplacians = candidates.map(({ laplacian }) => laplacian);
+
+  laplacians = [...new Set(laplacians)];
+
+  if (laplacians.length === 1 && candidates.length > 2) {
+    candidates.sort((a, b) => a.frameIdx - b.frameIdx);
+    qualified = [candidates[0], candidates[candidates.length - 1]];
+  }
 
   const promises = [];
   const blackFrames = [];
 
-  for (let i = 0; i < candidates.length; i += 1) {
-    const candidate = candidates[i];
+  const minLaplacian = Math.min(...laplacians);
+
+  for (let i = 0; i < qualified.length; i += 1) {
+    const candidate = qualified[i];
 
     if (candidate.laplacian === minLaplacian) {
       promises.push(_analyseBlackLevel(
@@ -525,20 +531,7 @@ async function _analyseBlackLevel(
   try {
     const key = PATH.join(prefix, name);
 
-    const signed = await CommonUtils.getSignedUrl({
-      Bucket: bucket,
-      Key: key,
-    });
-
-    const image = await new Promise((resolve, reject) => {
-      Jimp.read(signed)
-        .then((img) => {
-          resolve(img);
-        })
-        .catch((e) => {
-          reject(e);
-        });
-    });
+    const image = await imageFromS3(bucket, key);
 
     // compute luminance level
     const imgW = image.bitmap.width;
