@@ -165,6 +165,14 @@ aws cloudformation create-stack \
 |Europe (Ireland)|<a href="https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/quickcreate?templateURL=https://awsi-megs-guidances-eu-west-1.s3.eu-west-1.amazonaws.com/media2cloud/latest/media2cloud.template&stackName=media2cloudv4" target="_blank">Launch stack</a>|https://awsi-megs-guidances-eu-west-1.s3.eu-west-1.amazonaws.com/media2cloud/latest/media2cloud.template|
 |Asia Pacific (Sydney)|<a href="https://console.aws.amazon.com/cloudformation/home?region=ap-southeast-2#/stacks/quickcreate?templateURL=https://awsi-megs-guidances-ap-southeast-2.s3.ap-southeast-2.amazonaws.com/media2cloud/latest/media2cloud.template&stackName=media2cloudv4" target="_blank">Launch stack</a>|https://awsi-megs-guidances-ap-southeast-2.s3.ap-southeast-2.amazonaws.com/media2cloud/latest/media2cloud.template|
 
+#### _Custom version with Claude 4.5 support_
+
+This custom version includes support for the latest Claude models (Sonnet 4.5 and Haiku 4.5) in addition to Claude 3 models.
+
+|Region|1-click Quick Deploy|Template URL|
+|:--|:--|:--|
+|Asia Pacific (Tokyo)|<a href="https://console.aws.amazon.com/cloudformation/home?region=ap-northeast-1#/stacks/quickcreate?templateURL=https://eijikominami.s3.ap-northeast-1.amazonaws.com/media2cloud/4.0.8/media2cloud.template&stackName=media2cloudv4" target="_blank">Launch stack</a>|https://eijikominami.s3.ap-northeast-1.amazonaws.com/media2cloud/4.0.8/media2cloud.template|
+
 The stack creation takes about 30 minutes to complete. Upon completion, you should receive an email invitation to the Media2Cloud web portal.
 
 
