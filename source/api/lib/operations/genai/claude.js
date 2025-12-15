@@ -31,8 +31,9 @@ const DEFAULT_PARAMS = {
   anthropic_version: MODEL_VERSION,
   max_tokens: 4096 * 4,
   temperature: 0.2,
-  top_p: 0.1,
-  top_k: 250,
+  // Note: Claude 4.5 models only support temperature OR top_p, not both
+  // top_p: 0.1,
+  // top_k: 250,
   stop_sequences: ['\n\nHuman:'],
 };
 

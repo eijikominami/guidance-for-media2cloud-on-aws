@@ -51,6 +51,11 @@ class BaseModel {
 
     const response = await runtimeClient.send(command)
       .catch((e) => {
+        console.log(`=== Bedrock API Error: ${e.name} - ${e.message}`);
+        console.log(`=== Model ID: ${params.modelId}`);
+        console.log(`=== Region: ${REGION}`);
+        console.log(`=== Error details:`, JSON.stringify(e, null, 2));
+        
         if (e.code === 'ENOTFOUND') {
           e.name = 'ServiceUnavailableException';
           console.log(`=== Bedrock not supported in ${REGION} (${e.code})`);
@@ -58,6 +63,8 @@ class BaseModel {
           console.log(`=== Make sure to request access to the model, ${params.modelId} in ${REGION} (${e.code})`);
         } else if (e.name === 'AccessDeniedException') {
           console.log(`=== Make sure to request access to the model, ${params.modelId} in ${REGION} (${e.code})`);
+        } else if (e.name === 'ValidationException') {
+          console.log(`=== ValidationException details:`, e.$metadata);
         }
         throw e;
       });

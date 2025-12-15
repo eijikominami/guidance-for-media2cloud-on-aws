@@ -62,6 +62,14 @@ Mappings:
             Repo: "%%FACEAPI_REPO%%"
             Version: "%%FACEAPI_VER%%"
     AnthropicClaude:
+        Sonnet45:
+            Name: Anthropic Claude Sonnet 4.5
+            ModelId: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+            ModelVersion: bedrock-2023-05-31
+        Haiku45:
+            Name: Anthropic Claude Haiku 4.5
+            ModelId: us.anthropic.claude-haiku-4-5-20251001-v1:0
+            ModelVersion: bedrock-2023-05-31
         Sonnet:
             Name: Anthropic Claude 3 Sonnet
             ModelId: anthropic.claude-3-sonnet-20240229-v1:0
@@ -159,10 +167,12 @@ Parameters:
     BedrockModel:
         Type: String
         Description: Select a foundation model of Amazon Bedrock to use. Make sure you have granted model access to use these models through Amazon Bedrock console, Model access page.
-        Default: Anthropic Claude 3 Haiku
+        Default: Anthropic Claude Haiku 4.5
         AllowedValues:
-            - Anthropic Claude 3 Haiku
+            - Anthropic Claude Sonnet 4.5
+            - Anthropic Claude Haiku 4.5
             - Anthropic Claude 3 Sonnet
+            - Anthropic Claude 3 Haiku
     # Version compatibility statement
     VersionCompatibilityStatement:
         Type: String
@@ -284,6 +294,12 @@ Conditions:
         - !Equals
             - !Ref BedrockSecondaryRegionAccess
             - "No, do not enable Amazon Bedrock"
+    bAnthropicClaudeSonnet45: !Equals
+        - !Ref BedrockModel
+        - Anthropic Claude Sonnet 4.5
+    bAnthropicClaudeHaiku45: !Equals
+        - !Ref BedrockModel
+        - Anthropic Claude Haiku 4.5
     bAnthropicClaude3Sonnet: !Equals
         - !Ref BedrockModel
         - Anthropic Claude 3 Sonnet
@@ -755,35 +771,71 @@ Resources:
                                     - !Ref BedrockSecondaryRegionAccess
                     - ""
                 BedrockModelName: !If
-                    - bAnthropicClaude3Sonnet
+                    - bAnthropicClaudeSonnet45
                     - !FindInMap
                         - AnthropicClaude
-                        - Sonnet
+                        - Sonnet45
                         - Name
-                    - !FindInMap
-                        - AnthropicClaude
-                        - Haiku
-                        - Name
+                    - !If
+                        - bAnthropicClaudeHaiku45
+                        - !FindInMap
+                            - AnthropicClaude
+                            - Haiku45
+                            - Name
+                        - !If
+                            - bAnthropicClaude3Sonnet
+                            - !FindInMap
+                                - AnthropicClaude
+                                - Sonnet
+                                - Name
+                            - !FindInMap
+                                - AnthropicClaude
+                                - Haiku
+                                - Name
                 BedrockModelId: !If
-                    - bAnthropicClaude3Sonnet
+                    - bAnthropicClaudeSonnet45
                     - !FindInMap
                         - AnthropicClaude
-                        - Sonnet
+                        - Sonnet45
                         - ModelId
-                    - !FindInMap
-                        - AnthropicClaude
-                        - Haiku
-                        - ModelId
+                    - !If
+                        - bAnthropicClaudeHaiku45
+                        - !FindInMap
+                            - AnthropicClaude
+                            - Haiku45
+                            - ModelId
+                        - !If
+                            - bAnthropicClaude3Sonnet
+                            - !FindInMap
+                                - AnthropicClaude
+                                - Sonnet
+                                - ModelId
+                            - !FindInMap
+                                - AnthropicClaude
+                                - Haiku
+                                - ModelId
                 BedrockModelVersion: !If
-                    - bAnthropicClaude3Sonnet
+                    - bAnthropicClaudeSonnet45
                     - !FindInMap
                         - AnthropicClaude
-                        - Sonnet
+                        - Sonnet45
                         - ModelVersion
-                    - !FindInMap
-                        - AnthropicClaude
-                        - Haiku
-                        - ModelVersion
+                    - !If
+                        - bAnthropicClaudeHaiku45
+                        - !FindInMap
+                            - AnthropicClaude
+                            - Haiku45
+                            - ModelVersion
+                        - !If
+                            - bAnthropicClaude3Sonnet
+                            - !FindInMap
+                                - AnthropicClaude
+                                - Sonnet
+                                - ModelVersion
+                            - !FindInMap
+                                - AnthropicClaude
+                                - Haiku
+                                - ModelVersion
 
     ################################################################################
     #
@@ -912,35 +964,71 @@ Resources:
                                     - !Ref BedrockSecondaryRegionAccess
                     - ""
                 BedrockModelName: !If
-                    - bAnthropicClaude3Sonnet
+                    - bAnthropicClaudeSonnet45
                     - !FindInMap
                         - AnthropicClaude
-                        - Sonnet
+                        - Sonnet45
                         - Name
-                    - !FindInMap
-                        - AnthropicClaude
-                        - Haiku
-                        - Name
+                    - !If
+                        - bAnthropicClaudeHaiku45
+                        - !FindInMap
+                            - AnthropicClaude
+                            - Haiku45
+                            - Name
+                        - !If
+                            - bAnthropicClaude3Sonnet
+                            - !FindInMap
+                                - AnthropicClaude
+                                - Sonnet
+                                - Name
+                            - !FindInMap
+                                - AnthropicClaude
+                                - Haiku
+                                - Name
                 BedrockModelId: !If
-                    - bAnthropicClaude3Sonnet
+                    - bAnthropicClaudeSonnet45
                     - !FindInMap
                         - AnthropicClaude
-                        - Sonnet
+                        - Sonnet45
                         - ModelId
-                    - !FindInMap
-                        - AnthropicClaude
-                        - Haiku
-                        - ModelId
+                    - !If
+                        - bAnthropicClaudeHaiku45
+                        - !FindInMap
+                            - AnthropicClaude
+                            - Haiku45
+                            - ModelId
+                        - !If
+                            - bAnthropicClaude3Sonnet
+                            - !FindInMap
+                                - AnthropicClaude
+                                - Sonnet
+                                - ModelId
+                            - !FindInMap
+                                - AnthropicClaude
+                                - Haiku
+                                - ModelId
                 BedrockModelVersion: !If
-                    - bAnthropicClaude3Sonnet
+                    - bAnthropicClaudeSonnet45
                     - !FindInMap
                         - AnthropicClaude
-                        - Sonnet
+                        - Sonnet45
                         - ModelVersion
-                    - !FindInMap
-                        - AnthropicClaude
-                        - Haiku
-                        - ModelVersion
+                    - !If
+                        - bAnthropicClaudeHaiku45
+                        - !FindInMap
+                            - AnthropicClaude
+                            - Haiku45
+                            - ModelVersion
+                        - !If
+                            - bAnthropicClaude3Sonnet
+                            - !FindInMap
+                                - AnthropicClaude
+                                - Sonnet
+                                - ModelVersion
+                            - !FindInMap
+                                - AnthropicClaude
+                                - Haiku
+                                - ModelVersion
                 FaceApiImageUri: !GetAtt CodeBuildStack.Outputs.FaceApiImageUri
 
     ################################################################################
